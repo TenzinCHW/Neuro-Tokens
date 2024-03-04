@@ -1,6 +1,10 @@
 name = "NeuralMaxEnt"
-[compat]
-julia = "1.9.4"
-DrWatson = "2.13.0"
+
 [deps]
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
+MEFK = "f9d25a36-d517-41d3-bbe1-67e302c5cb03"
+NPZ = "15e1cf62-19b3-5cfa-8e77-841668bca605"
+
+[compat]
+DrWatson = "2.13.0"
+julia = "1.9.4"
