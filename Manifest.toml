@@ -2,7 +2,7 @@
 
 julia_version = "1.9.4"
 manifest_format = "2.0"
-project_hash = "ac35e0282db520ce500fe39056548dffc085a7d6"
+project_hash = "cda5a0f1b5ff3fcce51c96f7bd1f12d110a500c2"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -424,7 +424,7 @@ uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
 [[deps.MEFK]]
 deps = ["Combinatorics", "Flux", "LinearAlgebra"]
-git-tree-sha1 = "df8e5eadafd277b77750b66cdc6dd82e45bc64fb"
+git-tree-sha1 = "dea3bd1d3321cbd6a5be1a754ce767b11268fee4"
 repo-rev = "main"
 repo-url = "git@github.com:TenzinCHW/MEFK.jl.git"
 uuid = "f9d25a36-d517-41d3-bbe1-67e302c5cb03"
