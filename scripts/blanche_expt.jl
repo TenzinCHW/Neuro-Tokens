@@ -1,40 +1,16 @@
 import DrWatson
 DrWatson.@quickactivate
-import MEFK, NPZ, Flux, CUDA
+import MEFK, Distributions, Flux, CUDA
 include("extract_blanche.jl")
 
 
-function model_to_cpu(model, params)
+function model_to_cpu(model)
     if isa(model, MEFK.MEF3T)
         cpumodel = MEFK.MEF3T(model, Array)
-        #cpumodel = MEFK.MEF3T(model.n,
-        #                  model.W1 |> Array,
-        #                  model.W2 |> Array,
-        #                  model.W3 |> Array,
-        #                  model.W2_mask |> Array,
-        #                  model.W3_mask |> Array,
-        #                  [g |> Array for g in model.gradients],
-        #                  Array
-        #                 )
     elseif isa(model, MEFK.MEF2T)
         cpumodel = MEFK.MEF2T(model, Array)
-        #cpumodel = MEFK.MEF2T(model.n,
-        #                  model.W1 |> Array,
-        #                  model.W2 |> Array,
-        #                  model.W2_mask |> Array,
-        #                  [g |> Array for g in model.gradients],
-        #                  Array
-        #                 )
     else
         cpumodel = MEFK.MEFMPNK(model, Array)
-        #cpumodel = MEFK.MEFMPNK(model.n,
-        #                    model.K,
-        #                    model.W .|> Array,
-        #                    [g |> Array for g in model.grad],
-        #                    [inds .|> Array for inds in model.indices],
-        #                    [winds .|> Array for winds in model.windices],
-        #                    Array
-        #                   )
     end
     cpumodel
 end
@@ -42,15 +18,16 @@ end
 
 function train_on_data(data, max_iter, winsz, batchsize, array_cast)
     println("windowing")
-    data, counts = window(data, winsz)
-    n = size(data)[2]
-    println(size(data))
+    train_data, counts = window(data, winsz)
+    n = size(train_data)[2]
+    println(size(train_data))
     # Prep dataloader
     println("prep loader")
     counts = reshape(counts, (length(counts), 1))
-    loader = Flux.Data.DataLoader((data', counts'); batchsize=batchsize, partial=true)
+    loader = Flux.Data.DataLoader((train_data', counts'); batchsize=batchsize, partial=true)
     model = MEFK.MEF2T(n; array_cast=array_cast)
     optim = Flux.setup(Flux.Adam(0.1), model)
+    losses = []
     for i in 1:max_iter
         loss = 0
         grads = [0, 0, 0]
@@ -60,10 +37,16 @@ function train_on_data(data, max_iter, winsz, batchsize, array_cast)
             loss += l
         end
         println(loss)
+        push!(losses, loss)
+        # TODO set stopping criterion here
         grads = MEFK.retrieve_reset_gradients!(model; reset_grad=true)
         Flux.update!(optim, model, grads)
     end
-    model
+    input = ordered_window(data, winsz)
+    # converge on data
+    output = converge_dynamics(model, input |> array_cast) |> Array
+    cpumodel = model_to_cpu(model)
+    cpumodel, input, output, losses
 end
 
 
@@ -84,10 +67,19 @@ function converge_dynamics(model, data)
 end
 
 
+function generate_bernoulli(data)
+    np = size(data)[1]
+    p = sum(data, dims=1) ./ np
+    b = [rand(Distributions.Bernoulli(i), np) for i in p]
+    reduce(hcat, b) .|> UInt8
+end
+
+
 if abspath(PROGRAM_FILE) == @__FILE__
     dir = DrWatson.datadir("exp_raw", "pvc3", "crcns_pvc3_cat_recordings", "spont_activity", "spike_data_area18")
     params = Dict("binsz"=>parse(Int, ARGS[1]), "maxiter"=>parse(Int, ARGS[2]))
-    winszs = [5i for i in 2:10]
+    winszs = [5i for i in 2:12]
+    #winszs = [1]
     max_iter = params["maxiter"]
     binsz = params["binsz"]
     num_split = parse(Int, ARGS[3])
@@ -111,23 +103,32 @@ if abspath(PROGRAM_FILE) == @__FILE__
     for winsz in winszs
         params["winsz"] = winsz
         # Only doing matrix for now
-        save_loc = DrWatson.datadir("exp_pro", "matrix", "split", "models", "$(DrWatson.savename(params)).jld2")
-        if isfile(save_loc)
-            println("$save_loc exists, skipping")
-            continue
-        end
+        save_loc = DrWatson.datadir("exp_pro", "matrix", "full", "complete", "$(DrWatson.savename(params)).jld2")
+        null_loc = DrWatson.datadir("exp_pro", "matrix", "full", "null", "$(DrWatson.savename(params)).jld2")
 
         save_data = Dict()
+        save_null = Dict()
         for i in 1:num_split
-            model = train_on_data(data_split[i], max_iter, winsz, batchsize, array_cast)
-            # TODO converge on data_split[i]
-            input = ordered_window(data_split[i])
-            output = converge_dynamics(model, input |> array_cast) |> Array
-            cpumodel = model_to_cpu(model, params)
-            save_data["$i"] = Dict("input"=>input, "output"=>output, "net"=>cpumodel)
+            if !isfile(save_loc)
+                println("processing $save_loc")
+                model, input, output, losses = train_on_data(data_split[i], max_iter, winsz, batchsize, array_cast)
+                save_data["$i"] = Dict("input"=>input, "output"=>output, "net"=>model, "loss"=>losses)
+            end
+            # train null model, calculate means of each location and generate Bernoulli for dataset
+            if !isfile(null_loc)
+                println("processing $null_loc")
+                null_data = generate_bernoulli(data_split[i])
+                model, input, output, lossess = train_on_data(null_data, max_iter, winsz, batchsize, array_cast)
+                save_null["$i"] = Dict("input"=>input, "output"=>output, "net"=>model, "loss"=>losses)
+            end
         end
 
-        DrWatson.wsave(save_loc, save_data)
+        if !isfile(save_loc)
+            DrWatson.wsave(save_loc, save_data)
+        end
+        if !isfile(null_loc)
+            DrWatson.wsave(null_loc, save_null)
+        end
     end
 end
 
