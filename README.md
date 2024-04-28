@@ -1,5 +1,15 @@
 # NeuralMaxEnt
 
+## Data
+I have used this data for initial analysis [pvc3 data](https://crcns.org/data-sets/vc/pvc-3/about)
+
+## Experiments and analysis
+To run experiments on the above dataset, run the `blanch_expt.jl` file with the following command:
+```julia blanche_expt.jl <binsz> <maxiter> <numsplt> <dev> <batchsize>```
+
+For these experiments, `binsz` ranged from 500 to 5000 (in microseconds), `maxiter` was set to 100, `numsplit` was set to 10, `dev` is just the device ID for different runs and `batchsize` was set to 10000.
+
+
 This code base is using the [Julia Language](https://julialang.org/) and
 [DrWatson](https://juliadynamics.github.io/DrWatson.jl/stable/)
 to make a reproducible scientific project named
@@ -26,3 +36,4 @@ using DrWatson
 @quickactivate "NeuralMaxEnt"
 ```
 which auto-activate the project and enable local path handling from DrWatson.
+
