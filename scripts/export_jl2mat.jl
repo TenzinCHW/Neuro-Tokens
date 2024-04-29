@@ -9,9 +9,10 @@ function cntspikecell(dirpath, inout)
         fn = split(f, ".")[1]
         data = DrWatson.wload(joinpath(inpdir, f))
         data = data["1"][inout] # only have 1 split
-        cell = size(data)[2]
+        cell = size(data)[2] |> Float32
         unique_patt, cnts = unique_counts(data, 1)
-        spk = sum(unique_patt, dims=2) .|> Int
+        cnts = reshape(cnts, (length(cnts), 1))
+        spk = sum(unique_patt, dims=2) .|> Float32
         o = Dict("cells"=>cell, "counts"=>cnts, "spike_counts"=>spk)
         out[f] = o
     end
