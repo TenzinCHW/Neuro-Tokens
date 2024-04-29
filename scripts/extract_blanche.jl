@@ -37,7 +37,7 @@ mm(m, stuff) = m([m(s...) for s in stuff]...)
 
 
 function bin_spikes(spikes_times, binsz)
-    num_bins = max([max(st...) / binsz for st in spikes_times]...) |> ceilint
+    num_bins = max([max(st...) / binsz for st in filter(x->!isempty(x), spikes_times)]...) |> ceilint
     num_neurons = length(spikes_times)
     bin_data = zeros(UInt8, (num_bins, num_neurons))
     for (i, neuron_spikes) in enumerate(spikes_times)
