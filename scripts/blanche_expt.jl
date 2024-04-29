@@ -78,8 +78,7 @@ end
 if abspath(PROGRAM_FILE) == @__FILE__
     dir = DrWatson.datadir("exp_raw", "pvc3", "crcns_pvc3_cat_recordings", "spont_activity", "spike_data_area18")
     params = Dict("binsz"=>parse(Int, ARGS[1]), "maxiter"=>parse(Int, ARGS[2]))
-    winszs = [5i for i in 2:12]
-    #winszs = [1]
+    winszs = [i for i in 10:5:60]
     max_iter = params["maxiter"]
     binsz = params["binsz"]
     num_split = parse(Int, ARGS[3])
