@@ -124,9 +124,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
     #binsz = params["binsz"]
 
     # For Blanche's data
-    #dir = DrWatson.datadir("exp_raw", "pvc3", "crcns_pvc3_cat_recordings", "spont_activity", "spike_data_area18")
+    #path = DrWatson.datadir("exp_raw", "pvc3", "crcns_pvc3_cat_recordings", "spont_activity", "spike_data_area18")
     # For Joost's data
-    dir = DrWatson.datadir("exp_raw", "joost_data", "Long_recordings-stability_MaxEnt_and_CFP", "long_1_spontaneous_activity.jld2")
+    path = DrWatson.datadir("exp_raw", "joost_data", "Long_recordings-stability_MaxEnt_and_CFP", "long_1_spontaneous_activity.jld2")
     params = Dict("winsz"=>parse(Int, ARGS[1]), "maxiter"=>parse(Int, ARGS[2]))
     winsz = params["winsz"]
     binszs = [10000]
