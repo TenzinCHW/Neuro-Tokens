@@ -103,7 +103,7 @@ function runexperiment(binszs, winsz, max_iter, path, batchsize, array_cast, par
             if !isfile(null_loc)
                 println("processing $null_loc")
                 null_data = generatebernoulli(data_split[i])
-                model, input, output, lossess = trainondata(null_data, max_iter, winsz, batchsize, array_cast)
+                model, input, output, losses = trainondata(null_data, max_iter, winsz, batchsize, array_cast)
                 save_null["$i"] = Dict("input"=>input, "output"=>output, "net"=>model, "loss"=>losses)
             end
         end
