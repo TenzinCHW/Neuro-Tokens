@@ -49,7 +49,7 @@ function bin_spikes(spikes_times, binsz)
 end
 
 
-function extract_bin_spikes(dir::String, binsz) # binsz is in μs
+function extract_bin_spikes_blanche(dir::String, binsz) # binsz is in μs
     spike_files = [f for f in readdir(dir) if f[end-2:end] == "spk"]
     spikes_times = extract_spikes.(joinpath.(dir, spike_files))
     bin_spikes(spikes_times, binsz)

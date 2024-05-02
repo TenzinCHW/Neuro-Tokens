@@ -1,6 +1,4 @@
 include("extract_blanche.jl")
-#import DrWatson
-#DrWatson.@quickactivate
 
 
 function groupspikes(timings, ids)
@@ -16,8 +14,9 @@ end
 function extract_bin_spikes_joost(fpath::String, binsz)
     data = DrWatson.wload(fpath)
     timings = data["Ts"]
+    #println(max(timings...) / 1000_000 / 60)
     ids = data["Cs"]
-    println(length(unique(ids)))
+    #println(length(unique(ids)))
     spikes_times = groupspikes(timings, ids)
     bin_spikes(spikes_times, binsz)
 end
@@ -28,7 +27,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     println(readdir(basedir))
     for f in readdir(basedir)
         println(f)
-        extract_bin_spikes_joost(joinpath(basedir, f), 1000)
+        spk = extract_bin_spikes_joost(joinpath(basedir, f), 10000)
+        println("binned spike size: $(size(spk))")
     end
 end
 
