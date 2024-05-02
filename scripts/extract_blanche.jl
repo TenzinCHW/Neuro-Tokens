@@ -86,6 +86,12 @@ function trim_recording(data, pct::AbstractFloat)
 end
 
 
+function recordingsplittrain(data, num_split::Int)
+    split_sz = size(data)[1] / num_split
+    [data[ceilint(i*split_sz)+1:ceilint((i+1)*split_sz), :] for i in 0:num_split-1]
+end
+
+
 if abspath(PROGRAM_FILE) == @__FILE__
     dir = "../data/exp_raw/pvc3/crcns_pvc3_cat_recordings/spont_activity/spike_data_area18"
     binszs = [1000i for i in 1:10]

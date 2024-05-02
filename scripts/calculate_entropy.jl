@@ -1,10 +1,14 @@
-include("blanche_expt.jl")
-import Plots
-
-
-function calc_entropy(dist)
+function naiveentropy(dist)
     prob = dist ./ sum(dist)
     sum(-prob .* log2.(prob))
+end
+
+
+function NSB(HL, HLm1, L)
+    HL_ent = naiveentropy(HL)
+    HLm1_ent = naiveentropy(HLm1)
+    hmu = HL_ent - HLm1_ent
+    HL_ent - hmu * L
 end
 
 
@@ -27,10 +31,18 @@ function unique_ind(data)
 end
 
 
-unique_counts(arr) = [count(==(e), arr) for e in unique(arr)]
+uniquecounts(arr) = [count(==(e), arr) for e in unique(arr)]
+function uniquecounts(data, dims::Int)
+    patt_cnt = DataStructures.DefaultDict{Vector{UInt8}, Float32}(0)
+    for i in 1:size(data)[1]
+        patt_cnt[@view data[i, :]] += 1
+    end
+    unique_patt = reduce(hcat, patt_cnt |> keys |> collect)' |> Array
+    unique_patt, values(patt_cnt) |> collect
+end
 
 
-function raster_patterns(patterns)
+function rasterpatterns(patterns)
     _, y = unique_ind(patterns)
     num_patterns = size(patterns)[1]
     x = [i for i in 1:num_patterns]
@@ -38,7 +50,7 @@ function raster_patterns(patterns)
 end
 
 
-function converge_dynamics(model, data)
+function convergedynamics(model, data)
     out_ = MEFK.dynamics(model, data)
     out = MEFK.dynamics(model, out_)
     while !all(out .== out_)
@@ -50,6 +62,8 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
+    include("blanche_expt.jl")
+    import Plots
     numwin = 10
     numbin = 10
     winszs = [5i for i in 2:numwin]
@@ -72,14 +86,14 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
                 in_patt, in_ids = unique_ind(input)
                 out_patt, out_ids = unique_ind(output)
-                in_count = unique_counts(in_ids)
-                out_count = unique_counts(out_ids)
-                raw_ents[i, j, k] = calc_entropy(in_count)
+                in_count = uniquecounts(in_ids)
+                out_count = uniquecounts(out_ids)
+                raw_ents[i, j, k] = naiveentropy(in_count)
                 println("raw entropy: $(raw_ents[i, j, k])")
-                ents[i, j, k] = calc_entropy(out_count)
+                ents[i, j, k] = naiveentropy(out_count)
                 println("converged entropy: $(ents[i, j, k])")
 
-                #x, y = raster_patterns(out)
+                #x, y = rasterpatterns(out)
                 #y = log10.(y)
                 #p = Plots.scatter(x, y)
                 #Plots.savefig(DrWatson.plotsdir("converged_patterns_$(winsz)_order2.png"))
