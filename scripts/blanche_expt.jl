@@ -1,8 +1,9 @@
 import DrWatson
 DrWatson.@quickactivate
-import MEFK, Distributions, Flux, CUDA
-#include("extract_blanche.jl")
+import MEFK, Distributions, Flux, CUDA, MAT
+include("extract_blanche.jl")
 include("extract_joost.jl")
+include("calculate_entropy.jl")
 
 
 function modeltocpu(model)
@@ -17,19 +18,19 @@ function modeltocpu(model)
 end
 
 
-function trainondata(data, max_iter, winsz, batchsize, array_cast)
+function trainondata(data, maxiter, winsz, batchsize, arraycast)
     println("windowing")
-    train_data, counts = window(data, winsz)
-    n = size(train_data)[2]
-    println(size(train_data))
+    traindata, counts = window(data, winsz)
+    n = size(traindata)[2]
+    println(size(traindata))
     # Prep dataloader
     println("prep loader")
     counts = reshape(counts, (length(counts), 1))
-    loader = Flux.Data.DataLoader((train_data', counts'); batchsize=batchsize, partial=true)
-    model = MEFK.MEF2T(n; array_cast=array_cast)
+    loader = Flux.Data.DataLoader((traindata', counts'); batchsize=batchsize, partial=true)
+    model = MEFK.MEF2T(n; array_cast=arraycast)
     optim = Flux.setup(Flux.Adam(0.01), model) # TODO refactor learning rate as parameter?
     losses = []
-    for i in 1:max_iter
+    for i in 1:maxiter
         loss = 0
         grads = [0, 0, 0]
         for (d, c) in loader
@@ -45,9 +46,13 @@ function trainondata(data, max_iter, winsz, batchsize, array_cast)
     end
     input = ordered_window(data, winsz)
     # converge on data
-    output = convergedynamics(model, input |> array_cast) |> Array
+    output = convergedynamics(model, input |> arraycast) |> Array
     cpumodel = modeltocpu(model)
-    cpumodel, input, output, losses
+    inspkcnt = sum(traindata, dims=2)
+    uniqueout = convergedynamics(model, traindata |> arraycast) |> Array
+    combout, comboutcnt = combine_counts(uniqueout, counts)
+    comboutspkcnt = sum(combout, dims=2)
+    cpumodel, input, output, inspkcnt, counts, comboutspkcnt, comboutcnt, losses
 end
 
 
@@ -76,76 +81,84 @@ function generatebernoulli(data)
 end
 
 
-function runexperiment(binszs, winsz, max_iter, path, batchsize, array_cast, params, basedir, numsplit)
+function runexperiment(binsz, winszs, maxiter, path, batchsize, arraycast, params, basedir, numsplit, extract_fn)
     #for winsz in winszs
         #params["winsz"] = winsz
-    for binsz in binszs
-        params["binsz"] = binsz
+    for winsz in winszs
+        params["winsz"] = winsz
         # Only doing matrix for now
-        save_loc = joinpath(basedir, "complete", "$(DrWatson.savename(params)).jld2")
-        null_loc = joinpath(basedir, "null", "$(DrWatson.savename(params)).jld2")
+        saveloc = joinpath(basedir, "complete", "$(DrWatson.savename(params)).jld2")
+        nullloc = joinpath(basedir, "null", "$(DrWatson.savename(params)).jld2")
+        cdmdir = joinpath(basedir, "cdmentropy")
 
-        data = extract_bin_spikes_joost(path, binsz)
+        data = extract_fn(path, binsz)
         data = trim_recording(data, 0.15)#094)
         println(size(data))
         data_split = recordingsplittrain(data, numsplit)
         println("splits $numsplit total $(size(data))")
 
-        save_data = Dict()
-        save_null = Dict()
+        savedata = Dict()
+        savenull = Dict()
         for i in 1:numsplit
-            if !isfile(save_loc)
-                println("processing $save_loc")
-                model, input, output, losses = trainondata(data_split[i], max_iter, winsz, batchsize, array_cast)
-                save_data["$i"] = Dict("input"=>input, "output"=>output, "net"=>model, "loss"=>losses)
+            if !isfile(saveloc)
+                println("processing $saveloc")
+                model, input, output, inspkcnt, counts, comboutspkcnt, comboutcnt, losses =
+                    trainondata(data_split[i], maxiter, winsz, batchsize, arraycast)
+                savedata["$i"] = Dict("input"=>input, "output"=>output, "net"=>model, "inspikecnt"=>inspkcnt, "incnt"=>counts, "outspikecnt"=>comboutspkcnt, "outcnt"=>comboutcnt, "loss"=>losses)
+                MAT.matwrite(joinpath(cdmdir, "input", "$(DrWatson.savename(params))_$(i).mat"),
+                             Dict("inspikecnt"=>inspkcnt, "incnt"=>counts))
+                MAT.matwrite(joinpath(cdmdir, "complete", "$(DrWatson.savename(params))_$(i).mat"),
+                             Dict("cells"=>model.n, "spike_counts"=>comboutspkcnt, "counts"=>comboutcnt))
             end
             # train null model, calculate means of each location and generate Bernoulli for dataset
-            if !isfile(null_loc)
-                println("processing $null_loc")
-                null_data = generatebernoulli(data_split[i])
-                model, input, output, losses = trainondata(null_data, max_iter, winsz, batchsize, array_cast)
-                save_null["$i"] = Dict("input"=>input, "output"=>output, "net"=>model, "loss"=>losses)
+            if !isfile(nullloc)
+                println("processing $nullloc")
+                nulldata = generatebernoulli(data_split[i])
+                model, input, output, inspkcnt, counts, comboutspkcnt, comboutcnt, losses =
+                    trainondata(nulldata, maxiter, winsz, batchsize, arraycast)
+                savenull["$i"] = Dict("input"=>input, "output"=>output, "net"=>model, "inspikecnt"=>inspkcnt, "incnt"=>counts, "outspikecnt"=>comboutspkcnt, "outcnt"=>comboutcnt, "loss"=>losses)
+                MAT.matwrite(joinpath(cdmdir, "null", "$(DrWatson.savename(params))_$(i).mat"),
+                             Dict("cells"=>model.n, "spike_counts"=>comboutspkcnt, "counts"=>comboutcnt))
             end
         end
 
-        if !isfile(save_loc)
-            DrWatson.wsave(save_loc, save_data)
+        if !isfile(saveloc)
+            DrWatson.wsave(saveloc, savedata)
         end
-        if !isfile(null_loc)
-            DrWatson.wsave(null_loc, save_null)
+        if !isfile(nullloc)
+            DrWatson.wsave(nullloc, savenull)
         end
     end
 end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    #params = Dict("binsz"=>parse(Int, ARGS[1]), "maxiter"=>parse(Int, ARGS[2]))
-    #winszs = [i for i in 10:5:60]
-    #binsz = params["binsz"]
+    params = Dict("binsz"=>parse(Int, ARGS[1]), "maxiter"=>parse(Int, ARGS[2]))
+    winszs = [i for i in 1:20]
+    binsz = params["binsz"]
 
     # For Blanche's data
     #path = DrWatson.datadir("exp_raw", "pvc3", "crcns_pvc3_cat_recordings", "spont_activity", "spike_data_area18")
+    #extract_fn = extract_bin_spikes_blanche
     # For Joost's data
     path = DrWatson.datadir("exp_raw", "joost_data", "Long_recordings-stability_MaxEnt_and_CFP", "long_1_spontaneous_activity.jld2")
-    params = Dict("winsz"=>parse(Int, ARGS[1]), "maxiter"=>parse(Int, ARGS[2]))
-    winsz = params["winsz"]
-    binszs = [10000]
+    extract_fn = extract_bin_spikes_joost
+
     basedir = DrWatson.datadir("exp_pro", "matrix", "joost_long", "full")
-    max_iter = params["maxiter"]
+    maxiter = params["maxiter"]
     numsplit = parse(Int, ARGS[3])
 
     dev = parse(Int, ARGS[4])
     CUDA.device!(dev)
-    array_cast = CUDA.cu
+    arraycast = CUDA.cu
     batchsize = parse(Int, ARGS[5])
 
     #k = 2
     #params["k"] = k
-    #model = MEFK.MEFMPNK(n, k; array_cast=array_cast)
-    #model = MEFK.MEF3T(n; array_cast=array_cast)
+    #model = MEFK.MEFMPNK(n, k; array_cast=arraycast)
+    #model = MEFK.MEF3T(n; array_cast=arraycast)
     println("starting")
 
-    # TODO do binszs and winsz instead
-    runexperiment(binszs, winsz, max_iter, path, batchsize, array_cast, params, basedir, numsplit)
+    runexperiment(binsz, winszs, maxiter, path, batchsize, arraycast, params, basedir, numsplit, extract_fn)
 end
 
