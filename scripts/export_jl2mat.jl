@@ -98,4 +98,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     #end
     
     inp, out, null = cntspikecell(basedir, datapath, extractfn)
+    subdirs = Dict("input"=>inp, "complete"=>out, "null"=>null)
+    for (dn, v) in subdirs
+        writemat(v, basedir, dn)
+    end
 end
