@@ -72,7 +72,6 @@ function cntspikecell(dirpath, datapath, extractfn)
         out[f] = o
         inp[f] = i
         null[f] = nl
-        println("ok can stop")
     end
     inp, out, null
 end
