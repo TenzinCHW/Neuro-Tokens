@@ -38,10 +38,8 @@ end
 
 """Gets all pattern counts and spike counts for each unique pattern and pattern dimension"""
 function cntspikecell(dirpath, datapath, extractfn)
-    inp = Dict()
-    out = Dict()
-    null = Dict()
     for f in readdir(joinpath(dirpath, "complete"))
+        println(f)
         modeldata = DrWatson.wload(joinpath(dirpath, "complete", f))
         # extract model
         model = MEFK.MEF2T(modeldata["1"]["net"], CUDA.cu)
@@ -56,6 +54,7 @@ function cntspikecell(dirpath, datapath, extractfn)
         windowedspikes, counts = window(data_split[1], winsz)
         spkcnt = sum(windowedspikes, dims=2)
         # get outputs for data
+        println(size(windowedspikes))
         output = convergedynamics(model, windowedspikes |> CUDA.cu) |> Array
         # combine output count
         output, outcounts = combine_counts(output, counts)
@@ -69,11 +68,10 @@ function cntspikecell(dirpath, datapath, extractfn)
         o = Dict("cells"=>model.n, "counts"=>outcounts, "spike_counts"=>outspkcnt)
         i = Dict("cells"=>model.n, "counts"=>counts, "spike_counts"=>spkcnt)
         nl = Dict("cells"=>model.n, "counts"=>nullcnts, "spike_counts"=>nullspkcnt)
-        out[f] = o
-        inp[f] = i
-        null[f] = nl
+        MAT.matwrite(joinpath(dirpath, "cdmentropy", "input", "$(f).mat"), i)
+        MAT.matwrite(joinpath(dirpath, "cdmentropy", "complete", "$(f).mat"), o)
+        MAT.matwrite(joinpath(dirpath, "cdmentropy", "null", "$(f).mat"), nl)
     end
-    inp, out, null
 end
 
 
@@ -99,9 +97,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
     #    writemat(outvals, basedir, subdir)
     #end
     
-    inp, out, null = cntspikecell(basedir, datapath, extractfn)
-    subdirs = Dict("input"=>inp, "complete"=>out, "null"=>null)
-    for (dn, v) in subdirs
-        writemat(v, basedir, dn)
-    end
+    cntspikecell(basedir, datapath, extractfn)
+    #subdirs = Dict("input"=>inp, "complete"=>out, "null"=>null)
+    #for (dn, v) in subdirs
+    #    writemat(v, basedir, dn)
+    #end
 end
