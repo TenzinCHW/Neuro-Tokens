@@ -80,8 +80,10 @@ end
 if abspath(PROGRAM_FILE) == @__FILE__
     maindir = ARGS[1]
     basedir = DrWatson.datadir("exp_pro", "$maindir")
-    datapath = DrWatson.datadir("exp_raw", "joost_data", "Long_recordings-stability_MaxEnt_and_CFP", "long_1_spontaneous_activity.jld2")
-    extractfn = extract_bin_spikes_joost
+    datapath = DrWatson.datadir("exp_raw", "pvc3", "crcns_pvc3_cat_recordings", "spont_activity", "spike_data_area18")
+    extractfn = extract_bin_spikes_blanche
+    #datapath = DrWatson.datadir("exp_raw", "joost_data", "Long_recordings-stability_MaxEnt_and_CFP", "long_1_spontaneous_activity.jld2")
+    #extractfn = extract_bin_spikes_joost
     #subdirs = ["complete", "null"]
 
     # Extract input counts (assuming same for all)
