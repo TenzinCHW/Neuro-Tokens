@@ -134,17 +134,19 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     params = Dict("binsz"=>parse(Int, ARGS[1]), "maxiter"=>parse(Int, ARGS[2]))
-    winszs = [i for i in 1:20]
+    winszs = [i for i in 10:5:60]
     binsz = params["binsz"]
 
     # For Blanche's data
-    #path = DrWatson.datadir("exp_raw", "pvc3", "crcns_pvc3_cat_recordings", "spont_activity", "spike_data_area18")
-    #extract_fn = extract_bin_spikes_blanche
+    path = DrWatson.datadir("exp_raw", "pvc3", "crcns_pvc3_cat_recordings", "spont_activity", "spike_data_area18")
+    extract_fn = extract_bin_spikes_blanche
     # For Joost's data
-    path = DrWatson.datadir("exp_raw", "joost_data", "Long_recordings-stability_MaxEnt_and_CFP", "long_1_spontaneous_activity.jld2")
-    extract_fn = extract_bin_spikes_joost
+    #path = DrWatson.datadir("exp_raw", "joost_data", "Long_recordings-stability_MaxEnt_and_CFP", "long_1_spontaneous_activity.jld2")
+    #extract_fn = extract_bin_spikes_joost
 
-    basedir = DrWatson.datadir("exp_pro", "matrix", "joost_long", "full")
+
+    basedir = DrWatson.datadir("exp_pro", "matrix_old", "blanche", "split")
+    #basedir = DrWatson.datadir("exp_pro", "matrix", "joost_long", "full")
     maxiter = params["maxiter"]
     numsplit = parse(Int, ARGS[3])
 
