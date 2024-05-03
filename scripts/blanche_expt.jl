@@ -56,10 +56,10 @@ function trainondata(data, maxiter, winsz, batchsize, arraycast)
 end
 
 
-function recordingsplittrain(data, num_split::Int)
-    split_sz = size(data)[1] / num_split
-    [data[ceilint(i*split_sz)+1:ceilint((i+1)*split_sz), :] for i in 0:num_split-1]
-end
+#function recordingsplittrain(data, num_split::Int)
+#    split_sz = size(data)[1] / num_split
+#    [data[ceilint(i*split_sz)+1:ceilint((i+1)*split_sz), :] for i in 0:num_split-1]
+#end
 
 
 function convergedynamics(model, data)
