@@ -1,3 +1,8 @@
+import DrWatson
+DrWatson.@quickactivate
+import Plots
+
+
 function naiveentropy(dist)
     prob = dist ./ sum(dist)
     sum(-prob .* log2.(prob))
@@ -9,6 +14,11 @@ function NSB(HL, HLm1, L)
     HLm1_ent = naiveentropy(HLm1)
     hmu = HL_ent - HLm1_ent
     HL_ent - hmu * L
+end
+
+
+function MMcorrectedentropy(dist, totnumpatts)
+    naiveentropy(dist) + (length(dist) - 1) / (2 * totnumpatts)
 end
 
 
@@ -32,6 +42,7 @@ end
 
 
 uniquecounts(arr) = [count(==(e), arr) for e in unique(arr)]
+# TODO figure out why this is so slow compared to the window function in extract_blanche.jl
 function uniquecounts(data, dims::Int)
     patt_cnt = DataStructures.DefaultDict{Vector{UInt8}, Float32}(0)
     for i in 1:size(data)[1]
@@ -50,56 +61,53 @@ function rasterpatterns(patterns)
 end
 
 
-function convergedynamics(model, data)
-    out_ = MEFK.dynamics(model, data)
-    out = MEFK.dynamics(model, out_)
-    while !all(out .== out_)
-        out_ .= out
-        out = MEFK.dynamics(model, out)
-    end
-    out
+function outputentropydict(subdirs, numbin, numwin, numsplit)
+    d = Dict(subdir=>zeros(numbin, numwin, numsplit) for subdir in subdirs)
+    d["raw"] = zeros(numbin, numwin, numsplit)
+    d
 end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    include("blanche_expt.jl")
-    import Plots
-    numwin = 10
-    numbin = 10
-    winszs = [5i for i in 2:numwin]
-    binszs = [500i for i in 1:numbin]
+    #winszs = [5i for i in 2:numwin]
+    #binszs = [500i for i in 1:numbin]
+    winszs = [i for i in 10:5:60]
+    binszs = [10000]
     maxiter = 100
-    num_split = 10
-    base_dir = ["exp_pro", "matrix", "split", "complete"]
-    ents = zeros(length(binszs), length(winszs), num_split)
-    raw_ents = zeros(size(ents))
-    for (i, binsz) in enumerate(binszs)
-        for (j, winsz) in enumerate(winszs)
-            println("win $winsz bin $binsz")
-            params = Dict("winsz"=>winsz, "binsz"=>binsz, "maxiter"=>maxiter)
-            save_name = "$(DrWatson.savename(params)).jld2"
-            data = DrWatson.wload(DrWatson.datadir(base_dir..., save_name))
+    numsplit = 1
+    basedir = ["exp_pro", "matrix_old", "joost_long", "full"]
+    subdirs = ["complete", "null"]
+    entfuncs = ["MLE plugin", "MM correction"]
+    numbin, numwin = length(binszs), length(winszs)
+    entropies = Dict(name=>outputentropydict(subdirs, numbin, numwin, numsplit) for name in entfuncs)
+    for subdir in subdirs
+        for (i, binsz) in enumerate(binszs)
+            for (j, winsz) in enumerate(winszs)
+                println("win $winsz bin $binsz")
+                params = Dict("winsz"=>winsz, "binsz"=>binsz, "maxiter"=>maxiter)
+                savename = "$(DrWatson.savename(params)).jld2"
+                data = DrWatson.wload(DrWatson.datadir(basedir..., subdir, savename))
 
-            for k in 1:num_split
-                input = data["$k"]["input"]
-                output = data["$k"]["output"]
+                for k in 1:numsplit
+                    input = data["$k"]["input"]
+                    output = data["$k"]["output"]
+                    incnt = data["$k"]["incnt"]
+                    outcnt = data["$k"]["outcnt"]
+                    if subdir == "complete"
+                        entropies["MLE plugin"]["raw"][i, j, k] = naiveentropy(incnt)
+                        entropies["MM correction"]["raw"][i, j, k] = MMcorrectedentropy(incnt, size(input)[1])
+                    end
+                    entropies["MLE plugin"][subdir][i, j, k] = naiveentropy(outcnt)
+                    entropies["MM correction"][subdir][i, j, k] = MMcorrectedentropy(outcnt, size(output)[1])
 
-                in_patt, in_ids = unique_ind(input)
-                out_patt, out_ids = unique_ind(output)
-                in_count = uniquecounts(in_ids)
-                out_count = uniquecounts(out_ids)
-                raw_ents[i, j, k] = naiveentropy(in_count)
-                println("raw entropy: $(raw_ents[i, j, k])")
-                ents[i, j, k] = naiveentropy(out_count)
-                println("converged entropy: $(ents[i, j, k])")
-
-                #x, y = rasterpatterns(out)
-                #y = log10.(y)
-                #p = Plots.scatter(x, y)
-                #Plots.savefig(DrWatson.plotsdir("converged_patterns_$(winsz)_order2.png"))
+                    #x, y = rasterpatterns(out)
+                    #y = log10.(y)
+                    #p = Plots.scatter(x, y)
+                    #Plots.savefig(DrWatson.plotsdir("converged_patterns_$(winsz)_order2.png"))
+                end
             end
         end
     end
-    DrWatson.wsave(DrWatson.datadir("entropy_winbin.jld2"), Dict("model_entropy"=>ents, "raw_entropy"=>raw_ents))
+    DrWatson.wsave(DrWatson.datadir(basedir..., "entropy_winbin.jld2"), entropies)
 end
 
