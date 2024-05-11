@@ -21,7 +21,8 @@ end
 function trainondata(data, maxiter, winsz, batchsize, arraycast)
     println("windowing")
     traindata, counts = window(data, winsz)
-    n = size(traindata)[2]
+    bs, n = size(traindata)
+    batchsize = min(bs, batchsize)
     println(size(traindata))
     # Prep dataloader
     println("prep loader")
@@ -46,30 +47,13 @@ function trainondata(data, maxiter, winsz, batchsize, arraycast)
     end
     input = ordered_window(data, winsz)
     # converge on data
-    output = convergedynamics(model, input |> arraycast) |> Array
+    output = MEFK.convergedynamics(model, input |> arraycast) |> Array
     cpumodel = modeltocpu(model)
     inspkcnt = sum(traindata, dims=2)
-    uniqueout = convergedynamics(model, traindata |> arraycast) |> Array
+    uniqueout = MEFK.convergedynamics(model, traindata |> arraycast) |> Array
     combout, comboutcnt = combine_counts(uniqueout, counts)
     comboutspkcnt = sum(combout, dims=2)
     cpumodel, input, output, inspkcnt, counts, comboutspkcnt, comboutcnt, losses
-end
-
-
-#function recordingsplittrain(data, num_split::Int)
-#    split_sz = size(data)[1] / num_split
-#    [data[ceilint(i*split_sz)+1:ceilint((i+1)*split_sz), :] for i in 0:num_split-1]
-#end
-
-
-function convergedynamics(model, data)
-    out_ = MEFK.dynamics(model, data)
-    out = MEFK.dynamics(model, out_)
-    while !all(out .== out_)
-        out_ .= out
-        out = MEFK.dynamics(model, out)
-    end
-    out
 end
 
 
@@ -82,8 +66,6 @@ end
 
 
 function runexperiment(binsz, winszs, maxiter, path, batchsize, arraycast, params, basedir, numsplit, extract_fn)
-    #for winsz in winszs
-        #params["winsz"] = winsz
     for winsz in winszs
         params["winsz"] = winsz
         # Only doing matrix for now
@@ -134,19 +116,23 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     params = Dict("binsz"=>parse(Int, ARGS[1]), "maxiter"=>parse(Int, ARGS[2]))
-    winszs = [i for i in 10:5:60]
+    st = 36
+    en = 45
+    winszs = [i for i in st:en]
+    winszs = vcat(winszs[1:5], winszs[end-4:end])
+    println(winszs)
     binsz = params["binsz"]
 
     # For Blanche's data
-    path = DrWatson.datadir("exp_raw", "pvc3", "crcns_pvc3_cat_recordings", "spont_activity", "spike_data_area18")
-    extract_fn = extract_bin_spikes_blanche
+    #path = DrWatson.datadir("exp_raw", "pvc3", "crcns_pvc3_cat_recordings", "spont_activity", "spike_data_area18")
+    #extract_fn = extract_bin_spikes_blanche
     # For Joost's data
-    #path = DrWatson.datadir("exp_raw", "joost_data", "Long_recordings-stability_MaxEnt_and_CFP", "long_1_spontaneous_activity.jld2")
-    #extract_fn = extract_bin_spikes_joost
+    path = DrWatson.datadir("exp_raw", "joost_data", "Long_recordings-stability_MaxEnt_and_CFP", "long_1_spontaneous_activity.jld2")
+    extract_fn = extract_bin_spikes_joost
 
 
-    basedir = DrWatson.datadir("exp_pro", "matrix_old", "blanche", "split")
-    #basedir = DrWatson.datadir("exp_pro", "matrix", "joost_long", "full")
+    #basedir = DrWatson.datadir("exp_pro", "matrix", "blanche", "full")
+    basedir = DrWatson.datadir("exp_pro", "matrix", "joost_long", "full")
     maxiter = params["maxiter"]
     numsplit = parse(Int, ARGS[3])
 
