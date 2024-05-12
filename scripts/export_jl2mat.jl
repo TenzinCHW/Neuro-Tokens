@@ -37,14 +37,17 @@ end
 
 
 """Gets all pattern counts and spike counts for each unique pattern and pattern dimension"""
-function cntspikecell(dirpath, datapath, extractfn)
+function cntspikecell(dirpath, datapath, extractfn, bs)
     for f in readdir(joinpath(dirpath, "complete"))
+        params = DrWatson.parse_savename(f)[2]
+        if params["binsz"] != bs
+            continue
+        end
         println(f)
         modeldata = DrWatson.wload(joinpath(dirpath, "complete", f))
         # extract model
         model = MEFK.MEF2T(modeldata["1"]["net"], CUDA.cu)
         # get win/bin params
-        params = DrWatson.parse_savename(f)[2]
         winsz = params["winsz"]
         binsz = params["binsz"]
         # window data
@@ -55,7 +58,7 @@ function cntspikecell(dirpath, datapath, extractfn)
         spkcnt = sum(windowedspikes, dims=2)
         # get outputs for data
         println(size(windowedspikes))
-        output = convergedynamics(model, windowedspikes |> CUDA.cu) |> Array
+        output = MEFK.convergedynamics(model, windowedspikes |> CUDA.cu) |> Array
         # combine output count
         output, outcounts = combine_counts(output, counts)
         outspkcnt = sum(output, dims=2)
@@ -80,6 +83,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
     basedir = DrWatson.datadir("exp_pro", "$maindir")
     datapath = DrWatson.datadir("exp_raw", "pvc3", "crcns_pvc3_cat_recordings", "spont_activity", "spike_data_area18")
     extractfn = extract_bin_spikes_blanche
+    bs = parse(Int, ARGS[2])
+    dev = parse(Int, ARGS[3])
+    CUDA.device!(dev)
     #datapath = DrWatson.datadir("exp_raw", "joost_data", "Long_recordings-stability_MaxEnt_and_CFP", "long_1_spontaneous_activity.jld2")
     #extractfn = extract_bin_spikes_joost
     #subdirs = ["complete", "null"]
@@ -97,7 +103,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     #    writemat(outvals, basedir, subdir)
     #end
     
-    cntspikecell(basedir, datapath, extractfn)
+    cntspikecell(basedir, datapath, extractfn, bs)
     #subdirs = Dict("input"=>inp, "complete"=>out, "null"=>null)
     #for (dn, v) in subdirs
     #    writemat(v, basedir, dn)
