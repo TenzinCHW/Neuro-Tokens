@@ -1,7 +1,6 @@
 import DrWatson
 DrWatson.@quickactivate
 import MEFK, Distributions, Flux, CUDA, MAT
-include("extract_blanche.jl")
 include("extract_joost.jl")
 include("calculate_entropy.jl")
 
@@ -48,12 +47,15 @@ function trainondata(data, maxiter, winsz, batchsize, arraycast)
     input = ordered_window(data, winsz)
     # converge on data
     output = MEFK.convergedynamics(model, input |> arraycast) |> Array
-    cpumodel = modeltocpu(model)
-    inspkcnt = sum(traindata, dims=2)
+    # TODO instead of returning input and output, return index of traindata and uniqueout
+    in2inds, ininds = uniqueind(traindata)
     uniqueout = MEFK.convergedynamics(model, traindata |> arraycast) |> Array
     combout, comboutcnt = combine_counts(uniqueout, counts)
+    out2inds, outinds = uniqueind(combout)
+    cpumodel = modeltocpu(model)
+    inspkcnt = sum(traindata, dims=2)
     comboutspkcnt = sum(combout, dims=2)
-    cpumodel, input, output, inspkcnt, counts, comboutspkcnt, comboutcnt, losses
+    cpumodel, ininds, traindata, inspkcnt, counts, outinds, combout, comboutspkcnt, comboutcnt, losses
 end
 
 
@@ -84,9 +86,9 @@ function runexperiment(binsz, winszs, maxiter, path, batchsize, arraycast, param
         for i in 1:numsplit
             if !isfile(saveloc)
                 println("processing $saveloc")
-                model, input, output, inspkcnt, counts, comboutspkcnt, comboutcnt, losses =
+                model, ininds, uniqueinput, inspkcnt, counts, outinds, combout, comboutspkcnt, comboutcnt, losses =
                     trainondata(data_split[i], maxiter, winsz, batchsize, arraycast)
-                savedata["$i"] = Dict("input"=>input, "output"=>output, "net"=>model, "inspikecnt"=>inspkcnt, "incnt"=>counts, "outspikecnt"=>comboutspkcnt, "outcnt"=>comboutcnt, "loss"=>losses)
+                savedata["$i"] = Dict("ininds"=>ininds, "outinds"=>outinds, "input"=>uniqueinput, "output"=>combout, "net"=>model, "inspikecnt"=>inspkcnt, "incnt"=>counts, "outspikecnt"=>comboutspkcnt, "outcnt"=>comboutcnt, "loss"=>losses)
                 MAT.matwrite(joinpath(cdmdir, "input", "$(DrWatson.savename(params))_$(i).mat"),
                              Dict("inspikecnt"=>inspkcnt, "incnt"=>counts))
                 MAT.matwrite(joinpath(cdmdir, "complete", "$(DrWatson.savename(params))_$(i).mat"),
@@ -96,9 +98,9 @@ function runexperiment(binsz, winszs, maxiter, path, batchsize, arraycast, param
             if !isfile(nullloc)
                 println("processing $nullloc")
                 nulldata = generatebernoulli(data_split[i])
-                model, input, output, inspkcnt, counts, comboutspkcnt, comboutcnt, losses =
+                model, ininds, uniqueinput, inspkcnt, counts, outinds, combout, comboutspkcnt, comboutcnt, losses =
                     trainondata(nulldata, maxiter, winsz, batchsize, arraycast)
-                savenull["$i"] = Dict("input"=>input, "output"=>output, "net"=>model, "inspikecnt"=>inspkcnt, "incnt"=>counts, "outspikecnt"=>comboutspkcnt, "outcnt"=>comboutcnt, "loss"=>losses)
+                savenull["$i"] = Dict("ininds"=>ininds, "outinds"=>outinds, "input"=>uniqueinput, "output"=>combout, "net"=>model, "inspikecnt"=>inspkcnt, "incnt"=>counts, "outspikecnt"=>comboutspkcnt, "outcnt"=>comboutcnt, "loss"=>losses)
                 MAT.matwrite(joinpath(cdmdir, "null", "$(DrWatson.savename(params))_$(i).mat"),
                              Dict("cells"=>model.n, "spike_counts"=>comboutspkcnt, "counts"=>comboutcnt))
             end
@@ -116,23 +118,23 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     params = Dict("binsz"=>parse(Int, ARGS[1]), "maxiter"=>parse(Int, ARGS[2]))
-    st = 36
-    en = 45
+    st = 1
+    en = 1
     winszs = [i for i in st:en]
-    winszs = vcat(winszs[1:5], winszs[end-4:end])
+    #winszs = vcat(winszs[1:5], winszs[end-4:end])
     println(winszs)
     binsz = params["binsz"]
 
     # For Blanche's data
-    #path = DrWatson.datadir("exp_raw", "pvc3", "crcns_pvc3_cat_recordings", "spont_activity", "spike_data_area18")
-    #extract_fn = extract_bin_spikes_blanche
+    path = DrWatson.datadir("exp_raw", "pvc3", "crcns_pvc3_cat_recordings", "spont_activity", "spike_data_area18")
+    extract_fn = extract_bin_spikes_blanche
     # For Joost's data
-    path = DrWatson.datadir("exp_raw", "joost_data", "Long_recordings-stability_MaxEnt_and_CFP", "long_1_spontaneous_activity.jld2")
-    extract_fn = extract_bin_spikes_joost
+    #path = DrWatson.datadir("exp_raw", "joost_data", "Long_recordings-stability_MaxEnt_and_CFP", "long_1_spontaneous_activity.jld2")
+    #extract_fn = extract_bin_spikes_joost
 
 
-    #basedir = DrWatson.datadir("exp_pro", "matrix", "blanche", "full")
-    basedir = DrWatson.datadir("exp_pro", "matrix", "joost_long", "full")
+    basedir = DrWatson.datadir("exp_pro", "matrix", "blanche", "full")
+    #basedir = DrWatson.datadir("exp_pro", "matrix", "joost_long", "full")
     maxiter = params["maxiter"]
     numsplit = parse(Int, ARGS[3])
 
