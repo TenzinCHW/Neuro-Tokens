@@ -33,7 +33,7 @@ function combine_counts(data, counts)
 end
 
 
-function unique_ind(data)
+function uniqueind(data)
     unique_patterns = unique(data, dims=1)
     patt2ids = Dict(unique_patterns[i, :]=>i for i in 1:size(unique_patterns)[1])
     inds = [patt2ids[data[i, :]] for i in 1:size(data)[1]]
@@ -54,7 +54,7 @@ end
 
 
 function rasterpatterns(patterns)
-    _, y = unique_ind(patterns)
+    _, y = uniqueind(patterns)
     num_patterns = size(patterns)[1]
     x = [i for i in 1:num_patterns]
     x, y
