@@ -47,11 +47,11 @@ function trainondata(data, maxiter, winsz, batchsize, arraycast)
     input = ordered_window(data, winsz)
     # converge on data
     output = MEFK.convergedynamics(model, input |> arraycast) |> Array
-    # TODO instead of returning input and output, return index of traindata and uniqueout
-    in2inds, ininds = uniqueind(traindata)
+    # instead of returning input and output, return index of traindata and uniqueout
     uniqueout = MEFK.convergedynamics(model, traindata |> arraycast) |> Array
+    ininds = uniqueinds(traindata, input)
     combout, comboutcnt = combine_counts(uniqueout, counts)
-    out2inds, outinds = uniqueind(combout)
+    outinds = uniqueinds(combout, output)
     cpumodel = modeltocpu(model)
     inspkcnt = sum(traindata, dims=2)
     comboutspkcnt = sum(combout, dims=2)
@@ -88,9 +88,9 @@ function runexperiment(binsz, winszs, maxiter, path, batchsize, arraycast, param
                 println("processing $saveloc")
                 model, ininds, uniqueinput, inspkcnt, counts, outinds, combout, comboutspkcnt, comboutcnt, losses =
                     trainondata(data_split[i], maxiter, winsz, batchsize, arraycast)
-                savedata["$i"] = Dict("ininds"=>ininds, "outinds"=>outinds, "input"=>uniqueinput, "output"=>combout, "net"=>model, "inspikecnt"=>inspkcnt, "incnt"=>counts, "outspikecnt"=>comboutspkcnt, "outcnt"=>comboutcnt, "loss"=>losses)
+                savedata["$i"] = Dict("ininds"=>ininds, "outinds"=>outinds, "input"=>uniqueinput, "output"=>combout, "net"=>model, "inspikecnt"=>inspkcnt, "incount"=>counts, "outspikecnt"=>comboutspkcnt, "outcount"=>comboutcnt, "loss"=>losses)
                 MAT.matwrite(joinpath(cdmdir, "input", "$(DrWatson.savename(params))_$(i).mat"),
-                             Dict("inspikecnt"=>inspkcnt, "incnt"=>counts))
+                             Dict("inspikecnt"=>inspkcnt, "counts"=>counts))
                 MAT.matwrite(joinpath(cdmdir, "complete", "$(DrWatson.savename(params))_$(i).mat"),
                              Dict("cells"=>model.n, "spike_counts"=>comboutspkcnt, "counts"=>comboutcnt))
             end
@@ -100,7 +100,7 @@ function runexperiment(binsz, winszs, maxiter, path, batchsize, arraycast, param
                 nulldata = generatebernoulli(data_split[i])
                 model, ininds, uniqueinput, inspkcnt, counts, outinds, combout, comboutspkcnt, comboutcnt, losses =
                     trainondata(nulldata, maxiter, winsz, batchsize, arraycast)
-                savenull["$i"] = Dict("ininds"=>ininds, "outinds"=>outinds, "input"=>uniqueinput, "output"=>combout, "net"=>model, "inspikecnt"=>inspkcnt, "incnt"=>counts, "outspikecnt"=>comboutspkcnt, "outcnt"=>comboutcnt, "loss"=>losses)
+                savenull["$i"] = Dict("ininds"=>ininds, "outinds"=>outinds, "input"=>uniqueinput, "output"=>combout, "net"=>model, "inspikecnt"=>inspkcnt, "incount"=>counts, "outspikecnt"=>comboutspkcnt, "outcount"=>comboutcnt, "loss"=>losses)
                 MAT.matwrite(joinpath(cdmdir, "null", "$(DrWatson.savename(params))_$(i).mat"),
                              Dict("cells"=>model.n, "spike_counts"=>comboutspkcnt, "counts"=>comboutcnt))
             end

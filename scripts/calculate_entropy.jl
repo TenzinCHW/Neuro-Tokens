@@ -41,6 +41,17 @@ function uniqueind(data)
 end
 
 
+"""Get ordered array of uniquedata to indices of uniquedata that make up origdata.
+uniquedata might not be in same order as unique(origdata, dims=1)."""
+function uniqueinds(uniquedata, origdata)
+    inddict = Dict()
+    for i in 1:size(uniquedata)[1]
+        inddict[uniquedata[i, :]] = i
+    end
+    [inddict[origdata[i, :]] for i in 1:size(origdata)[1]]
+end
+
+
 uniquecounts(arr) = [count(==(e), arr) for e in unique(arr)]
 # TODO figure out why this is so slow compared to the window function in extract_blanche.jl
 function uniquecounts(data, dims::Int)
