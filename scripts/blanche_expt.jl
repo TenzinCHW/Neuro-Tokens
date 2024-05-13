@@ -28,7 +28,7 @@ function trainondata(data, maxiter, winsz, batchsize, arraycast, lr)
     counts = reshape(counts, (length(counts), 1))
     loader = Flux.Data.DataLoader((traindata', counts'); batchsize=batchsize, partial=true)
     model = MEFK.MEF2T(n; array_cast=arraycast)
-    optim = Flux.setup(Flux.Adam(0.01), model) # TODO refactor learning rate as parameter?
+    optim = Flux.setup(Flux.Adam(lr), model) # TODO refactor learning rate as parameter?
     losses = []
     for i in 1:maxiter
         loss = 0
