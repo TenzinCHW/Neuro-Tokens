@@ -1,6 +1,6 @@
 import DrWatson
 DrWatson.@quickactivate
-import Plots
+import Plots, MEFK
 
 
 function naiveentropy(dist)
@@ -80,13 +80,12 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    #winszs = [5i for i in 2:numwin]
-    #binszs = [500i for i in 1:numbin]
     winszs = [i for i in 10:5:60]
-    binszs = [10000]
+    binszs = [i for i in 500:500:6000]
     maxiter = 100
     numsplit = 1
-    basedir = ["exp_pro", "matrix_old", "joost_long", "full"]
+    maindir = ARGS[1] # e.g. matrix/blanche/full
+    basedir = ["exp_pro", maindir]
     subdirs = ["complete", "null"]
     entfuncs = ["MLE plugin", "MM correction"]
     numbin, numwin = length(binszs), length(winszs)
@@ -100,21 +99,15 @@ if abspath(PROGRAM_FILE) == @__FILE__
                 data = DrWatson.wload(DrWatson.datadir(basedir..., subdir, savename))
 
                 for k in 1:numsplit
-                    input = data["$k"]["input"]
-                    output = data["$k"]["output"]
-                    incnt = data["$k"]["incnt"]
-                    outcnt = data["$k"]["outcnt"]
+                    ininds = data["$k"]["ininds"]
+                    incount = data["$k"]["incount"]
+                    outcount = data["$k"]["outcount"]
                     if subdir == "complete"
-                        entropies["MLE plugin"]["raw"][i, j, k] = naiveentropy(incnt)
-                        entropies["MM correction"]["raw"][i, j, k] = MMcorrectedentropy(incnt, size(input)[1])
+                        entropies["MLE plugin"]["raw"][i, j, k] = naiveentropy(incount)
+                        entropies["MM correction"]["raw"][i, j, k] = MMcorrectedentropy(incount, length(ininds))
                     end
-                    entropies["MLE plugin"][subdir][i, j, k] = naiveentropy(outcnt)
-                    entropies["MM correction"][subdir][i, j, k] = MMcorrectedentropy(outcnt, size(output)[1])
-
-                    #x, y = rasterpatterns(out)
-                    #y = log10.(y)
-                    #p = Plots.scatter(x, y)
-                    #Plots.savefig(DrWatson.plotsdir("converged_patterns_$(winsz)_order2.png"))
+                    entropies["MLE plugin"][subdir][i, j, k] = naiveentropy(outcount)
+                    entropies["MM correction"][subdir][i, j, k] = MMcorrectedentropy(outcount, length(ininds))
                 end
             end
         end
