@@ -23,7 +23,7 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    basedir = "/home/tenzin/joost_data/Long_recordings-stability_MaxEnt_and_CFP"
+    basedir = "../data/exp_raw/joost_data/Long_recordings-stability_MaxEnt_and_CFP"
     println(readdir(basedir))
     for f in readdir(basedir)
         println(f)
