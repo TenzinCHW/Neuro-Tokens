@@ -28,8 +28,9 @@ function trainondata(data, maxiter, winsz, batchsize, arraycast, lr)
     counts = reshape(counts, (length(counts), 1))
     loader = Flux.Data.DataLoader((traindata', counts'); batchsize=batchsize, partial=true)
     model = MEFK.MEF2T(n; array_cast=arraycast)
-    optim = Flux.setup(Flux.Adam(lr), model) # TODO refactor learning rate as parameter?
+    optim = Flux.setup(Flux.Adam(lr), model)
     losses = []
+    #output_ = MEFK.convergedynamics(model, traindata |> arraycast) |> Array
     for i in 1:maxiter
         loss = 0
         grads = [0, 0, 0]
@@ -43,10 +44,24 @@ function trainondata(data, maxiter, winsz, batchsize, arraycast, lr)
         # TODO set stopping criterion here
         grads = MEFK.retrieve_reset_gradients!(model; reset_grad=true)
         Flux.update!(optim, model, grads)
+        #if i % checkevery == 0
+        #    checkout = MEFK.convergedynamics(model, traindata |> arraycast) |> Array
+        #    if all(checkout .== output_)
+        #        break
+        #    else
+        #        output_ = checkout
+        #    end
+        #end
     end
     input = ordered_window(data, winsz)
     # converge on data
-    output = MEFK.convergedynamics(model, input |> arraycast) |> Array
+    inputloader = Flux.Data.DataLoader(input'; batchsize=batchsize, partial=true)
+    output = []
+    for batch in inputloader
+        out = MEFK.convergedynamics(model, batch' |> arraycast) |> Array
+        push!(output, out)
+    end
+    output = reduce(vcat, output)
     # instead of returning input and output, return index of traindata and uniqueout
     uniqueout = MEFK.convergedynamics(model, traindata |> arraycast) |> Array
     ininds = uniqueinds(traindata, input)
