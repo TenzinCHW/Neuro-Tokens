@@ -1,10 +1,10 @@
-# NeuralMaxEnt
+# Neuro-Tokens
 
 ## DrWatson install instructions
 This code base is using the [Julia Language](https://julialang.org/) and
 [DrWatson](https://juliadynamics.github.io/DrWatson.jl/stable/)
 to make a reproducible scientific project named
-> NeuralMaxEnt
+> Neuro-Tokens
 
 To (locally) reproduce this project, do the following:
 
