@@ -3,10 +3,18 @@ DrWatson.@quickactivate
 import Plots, MEFK
 
 
-function save_plot_raster(pattinds, loc, label)
+function save_plot_raster(pattinds, loc, savetype, winsz)
     t = 1:length(pattinds) |> collect
-    y = pattinds .|> log10
-    Plots.scatter(t, y, label=label, xlabel="timestep", ylabel="log pattern first appearance", ms=1)
+    if savetype == "log"
+        y = pattinds .|> log10
+        ylab = "log "
+    elseif savetype == "linear"
+        y = pattinds
+        ylab = ""
+    else
+        error("savetype $(savetype) must be log or linear")
+    end
+    Plots.scatter(t, y, xlabel="timestep", ylabel="$(ylab)index pattern first appearance", title="L=$(winsz)", ms=1, legend=false)
     Plots.savefig(loc)
 end
 
@@ -24,7 +32,7 @@ function sortindsbyoccurrence(inds)
 end
 
 
-function plot_raster_all(basedir, dset, ext)
+function plot_raster_all(basedir, dset, savetype, ext)
     files = readdir(basedir)
     for fn in files
         params = DrWatson.parse_savename(fn)[2]
@@ -32,20 +40,23 @@ function plot_raster_all(basedir, dset, ext)
         f = DrWatson.savename(Dict("winsz"=>winsz, "binsz"=>binsz))
         data = DrWatson.wload(joinpath(basedir, fn))["1"]
         ininds, outinds = [data["ininds"], data["outinds"]] .|> sortindsbyoccurrence
-        loc = DrWatson.plotsdir(dset, "raw", "$(f).$(ext)")
-        save_plot_raster(ininds, loc, "raw")
-        loc = DrWatson.plotsdir(dset, "model", "$(f).$(ext)")
-        save_plot_raster(outinds, loc, "model")
+        loc = DrWatson.plotsdir("pattern_index_raster", savetype, dset, "raw", "$(f).$(ext)")
+        save_plot_raster(ininds, loc, savetype, winsz)
+        loc = DrWatson.plotsdir("pattern_index_raster", savetype, dset, "model", "$(f).$(ext)")
+        save_plot_raster(outinds, loc, savetype, winsz)
     end
 end
 
 
 dset = ARGS[1]
-#binsz = ARGS[2]
-#winsz = ARGS[3]
+savetype = ARGS[2] # log or linear
 ext = ARGS[end]
 basedir = DrWatson.datadir("exp_pro", "matrix_hm", dset, "full", "complete")
-plot_raster_all(basedir, dset, ext)
+plot_raster_all(basedir, dset, savetype, ext)
+
+#dset = ARGS[1]
+#binsz = ARGS[2]
+#winsz = ARGS[3]
 #f = DrWatson.savename(Dict("winsz"=>winsz, "binsz"=>binsz, "maxiter"=>100))
 #fname = "$(f).jld2"
 #basedir = DrWatson.datadir("exp_pro", "testnew", dset, "full")
