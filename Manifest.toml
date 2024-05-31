@@ -1224,7 +1224,7 @@ version = "0.10.7"
 deps = ["Combinatorics", "Flux", "LinearAlgebra"]
 git-tree-sha1 = "eeaee8baf667c8f91912413c56ebe185054bed9c"
 repo-rev = "main"
-repo-url = "git@github.com:TenzinCHW/MEFK.jl.git"
+repo-url = "https://github.com/TenzinCHW/MEFK.jl"
 uuid = "f9d25a36-d517-41d3-bbe1-67e302c5cb03"
 version = "0.1.0"
 
