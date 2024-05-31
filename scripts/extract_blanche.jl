@@ -98,7 +98,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     winszs = [i for i in 1:20]
     windowed = []
     for binsz in binszs
-        spikes = extract_bin_spikes(dir, binsz)
+        spikes = extract_bin_spikes_blanche(dir, binsz)
         Threads.@threads for winsz in winszs
             # race condition for dict so put into array first
             push!(windowed, ("$binsz $winsz", window(spikes, winsz)))
