@@ -21,6 +21,8 @@ To (locally) reproduce this project, do the following:
 This will install all necessary packages for you to be able to run the scripts and
 everything should work out of the box, including correctly finding local paths.
 
+We use the [MEFK.jl](https://github.com/TenzinCHW/MEFK.jl) library for all the simulations and fitting of data.
+
 ## Estimating entropy with CDM in octave
 First install [octave](https://octave.org/download).
 Then, start octave and innstall `statistics`, `struct` and `parallel` with
@@ -36,8 +38,10 @@ and [this one from Lamberti](https://datadryad.org/stash/dataset/doi:10.5061/dry
 
 ## Experiments and analysis
 To run experiments on the above datasets, place their files into a `data/exp_raw` directory and
-run the `blanch_expt.jl` file with the following command:
-```julia train_network.jl <binsz> <maxiter> <numsplit> <dev> <batchsize>```
+run the `train_network.jl` file with the following command:
+```
+julia train_network.jl <binsz> <maxiter> <numsplit> <dev> <batchsize>
+```
 
 ### Heatmaps
 For these experiments, `binsz` ranged from 500 to 6000 (in microseconds), `maxiter` was set to 100,
