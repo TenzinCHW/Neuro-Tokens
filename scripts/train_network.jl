@@ -1,6 +1,8 @@
 import DrWatson
 DrWatson.@quickactivate
 import MEFK, Distributions, Flux, CUDA, MAT
+import ProgressBars: ProgressBar, set_multiline_postfix
+import Printf
 include("extract_joost.jl")
 include("calculate_entropy.jl")
 
@@ -17,7 +19,20 @@ function modeltocpu(model)
 end
 
 
-function trainondata(data, maxiter, winsz, batchsize, arraycast, lr)
+function convergeloader(model, loader)
+    output = []
+    for (batch, _) in loader
+        out = MEFK.convergedynamics(model, batch' |> Array) |> Array
+        push!(output, out)
+    end
+    reduce(vcat, output)
+end
+
+
+print2dp(val) = Printf.@sprintf("%.2f", val)
+
+
+function trainondata(data, maxiter, winsz, batchsize, arraycast, lr, checkevery=100; model=nothing)
     println("windowing")
     traindata, counts = window(data, winsz)
     bs, n = size(traindata)
@@ -27,41 +42,43 @@ function trainondata(data, maxiter, winsz, batchsize, arraycast, lr)
     println("prep loader")
     counts = reshape(counts, (length(counts), 1))
     loader = Flux.Data.DataLoader((traindata', counts'); batchsize=batchsize, partial=true)
-    model = MEFK.MEF2T(n; array_cast=arraycast)
+    if isnothing(model)
+        model = MEFK.MEF2T(n; array_cast=arraycast)
+    end
     optim = Flux.setup(Flux.Adam(lr), model)
     losses = []
-    #output_ = MEFK.convergedynamics(model, traindata |> arraycast) |> Array
-    for i in 1:maxiter
+    entropies = Dict()
+    uniqueout = MEFK.convergedynamics(model, traindata |> arraycast) |> Array
+    pb = ProgressBar(1:maxiter)
+    ent = 0
+    for i in pb
         loss = 0
-        grads = [0, 0, 0]
         for (d, c) in loader
             d = d' |> Array
-            l, _ = model(d, c[:])
+            l, grads = model(d, c[:], reset_grad=true)
             loss += l
+            Flux.update!(optim, model, grads)
         end
-        println(loss)
+        set_multiline_postfix(pb, "Loss: $(print2dp(loss))\nEntropy: $(ent)")
         push!(losses, loss)
-        # TODO set stopping criterion here
-        grads = MEFK.retrieve_reset_gradients!(model; reset_grad=true)
-        Flux.update!(optim, model, grads)
-        #if i % checkevery == 0
-        #    checkout = MEFK.convergedynamics(model, traindata |> arraycast) |> Array
-        #    if all(checkout .== output_)
-        #        break
-        #    else
-        #        output_ = checkout
-        #    end
-        #end
+        if i % checkevery == 0
+            checkout = convergeloader(model, loader)
+            _, cnt = combine_counts(checkout, counts)
+            ent = naiveentropy(cnt)
+            entropies[i] = ent
+            set_multiline_postfix(pb, "Loss: $(print2dp(loss))\nEntropy: $(ent)")
+            if all(checkout .== uniqueout)
+                break
+            else
+                uniqueout = checkout
+            end
+        end
     end
     input = ordered_window(data, winsz)
     # converge on data
-    inputloader = Flux.Data.DataLoader(input'; batchsize=batchsize, partial=true)
-    output = []
-    for batch in inputloader
-        out = MEFK.convergedynamics(model, batch' |> arraycast) |> Array
-        push!(output, out)
-    end
-    output = reduce(vcat, output)
+    println(size(input))
+    inputloader = Flux.Data.DataLoader((input', ones(1, size(input)[1])); batchsize=batchsize, partial=true)
+    output = convergeloader(model, inputloader)
     # instead of returning input and output, return index of traindata and uniqueout
     uniqueout = MEFK.convergedynamics(model, traindata |> arraycast) |> Array
     ininds = uniqueinds(traindata, input)
@@ -70,7 +87,7 @@ function trainondata(data, maxiter, winsz, batchsize, arraycast, lr)
     cpumodel = modeltocpu(model)
     inspkcnt = sum(traindata, dims=2)
     comboutspkcnt = sum(combout, dims=2)
-    cpumodel, ininds, traindata, inspkcnt, counts, outinds, combout, comboutspkcnt, comboutcnt, losses
+    cpumodel, ininds, traindata, inspkcnt, counts, outinds, combout, comboutspkcnt, comboutcnt, losses, entropies
 end
 
 
@@ -101,23 +118,23 @@ function runexperiment(binsz, winszs, maxiter, path, batchsize, arraycast, param
         for i in 1:numsplit
             if !isfile(saveloc)
                 println("processing $saveloc")
-                model, ininds, uniqueinput, inspkcnt, counts, outinds, combout, comboutspkcnt, comboutcnt, losses =
+                model, ininds, uniqueinput, inspkcnt, counts, outinds, combout, comboutspkcnt, comboutcnt, losses, entropies =
                     trainondata(data_split[i], maxiter, winsz, batchsize, arraycast, lr)
-                savedata["$i"] = Dict("ininds"=>ininds, "outinds"=>outinds, "input"=>uniqueinput, "output"=>combout, "net"=>model, "inspikecnt"=>inspkcnt, "incount"=>counts, "outspikecnt"=>comboutspkcnt, "outcount"=>comboutcnt, "loss"=>losses)
-                MAT.matwrite(joinpath(cdmdir, "input", "$(DrWatson.savename(params))_$(i).mat"),
-                             Dict("inspikecnt"=>inspkcnt, "counts"=>counts))
-                MAT.matwrite(joinpath(cdmdir, "complete", "$(DrWatson.savename(params))_$(i).mat"),
-                             Dict("cells"=>model.n, "spike_counts"=>comboutspkcnt, "counts"=>comboutcnt))
+                savedata["$i"] = Dict("ininds"=>ininds, "outinds"=>outinds, "input"=>uniqueinput, "output"=>combout, "net"=>model, "inspikecnt"=>inspkcnt, "incount"=>counts, "outspikecnt"=>comboutspkcnt, "outcount"=>comboutcnt, "loss"=>losses, "entropy"=>entropies)
+                #MAT.matwrite(joinpath(cdmdir, "input", "$(DrWatson.savename(params))_$(i).mat"),
+                #             Dict("inspikecnt"=>inspkcnt, "counts"=>counts))
+                #MAT.matwrite(joinpath(cdmdir, "complete", "$(DrWatson.savename(params))_$(i).mat"),
+                #             Dict("cells"=>model.n, "spike_counts"=>comboutspkcnt, "counts"=>comboutcnt))
             end
             # train null model, calculate means of each location and generate Bernoulli for dataset
             if !isfile(nullloc)
                 println("processing $nullloc")
                 nulldata = generatebernoulli(data_split[i])
-                model, ininds, uniqueinput, inspkcnt, counts, outinds, combout, comboutspkcnt, comboutcnt, losses =
+                model, ininds, uniqueinput, inspkcnt, counts, outinds, combout, comboutspkcnt, comboutcnt, losses, entropies =
                     trainondata(nulldata, maxiter, winsz, batchsize, arraycast, lr)
-                savenull["$i"] = Dict("ininds"=>ininds, "outinds"=>outinds, "input"=>uniqueinput, "output"=>combout, "net"=>model, "inspikecnt"=>inspkcnt, "incount"=>counts, "outspikecnt"=>comboutspkcnt, "outcount"=>comboutcnt, "loss"=>losses)
-                MAT.matwrite(joinpath(cdmdir, "null", "$(DrWatson.savename(params))_$(i).mat"),
-                             Dict("cells"=>model.n, "spike_counts"=>comboutspkcnt, "counts"=>comboutcnt))
+                savenull["$i"] = Dict("ininds"=>ininds, "outinds"=>outinds, "input"=>uniqueinput, "output"=>combout, "net"=>model, "inspikecnt"=>inspkcnt, "incount"=>counts, "outspikecnt"=>comboutspkcnt, "outcount"=>comboutcnt, "loss"=>losses, "entropy"=>entropies)
+                #MAT.matwrite(joinpath(cdmdir, "null", "$(DrWatson.savename(params))_$(i).mat"),
+                #             Dict("cells"=>model.n, "spike_counts"=>comboutspkcnt, "counts"=>comboutcnt))
             end
         end
 

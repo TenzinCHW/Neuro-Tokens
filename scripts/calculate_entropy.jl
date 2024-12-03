@@ -1,6 +1,6 @@
 import DrWatson
 DrWatson.@quickactivate
-import Plots, MEFK
+import Plots, MEFK, DataStructures
 
 
 function naiveentropy(dist)
@@ -97,11 +97,19 @@ if abspath(PROGRAM_FILE) == @__FILE__
                 params = Dict("winsz"=>winsz, "binsz"=>binsz, "maxiter"=>maxiter)
                 savename = "$(DrWatson.savename(params)).jld2"
                 data = DrWatson.wload(DrWatson.datadir(basedir..., subdir, savename))
+                println(keys(data))
 
                 for k in 1:numsplit
-                    ininds = data["$k"]["ininds"]
-                    incount = data["$k"]["incount"]
-                    outcount = data["$k"]["outcount"]
+                    #ininds = data["$k"]["ininds"]
+                    #incount = data["$k"]["incount"]
+                    #outcount = data["$k"]["outcount"]
+
+                    input = data["$k"]["input"]
+                    output = data["$k"]["output"]
+                    ininds = input[:, 1]
+                    _, incount = uniquecounts(input, 1)
+                    _, outcount = uniquecounts(output, 1)
+
                     if subdir == "complete"
                         entropies["MLE plugin"]["raw"][i, j, k] = naiveentropy(incount)
                         entropies["MM correction"]["raw"][i, j, k] = MMcorrectedentropy(incount, length(ininds))
