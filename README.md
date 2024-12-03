@@ -43,6 +43,12 @@ run the `train_network.jl` file with the following command:
 julia train_network.jl <binsz> <maxiter> <numsplit> <dev> <batchsize>
 ```
 
+`analyze.jl` is for plotting histograms of hamming distances between memorized patterns and originals, among other stuff.
+
+`train_network.jl` is the main file for running the fitting of MPN models with MEF for a given bin size and win size.
+
+`extract_blanche.jl` and `extract_joost.jl` are for extracting data from the respective datasets into JLD files.
+
 ### Heatmaps
 For these experiments, `binsz` ranged from 500 to 6000 (in microseconds), `maxiter` was set to 100,
 `numsplit` was set to 1, `dev` is the device ID and `batchsize` was set to 10000.
