@@ -1,8 +1,8 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.1"
+julia_version = "1.11.2"
 manifest_format = "2.0"
-project_hash = "8d82e330c9dc83b28ad01edd75e78ace15217f94"
+project_hash = "c420c9169bfa92c12642e39edcea71635887b228"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1307,9 +1307,9 @@ version = "0.10.7"
 
 [[deps.MEFK]]
 deps = ["Combinatorics", "Flux", "LinearAlgebra"]
-git-tree-sha1 = "4473ccabe91d369eccaca635e98510183f4cf94d"
+git-tree-sha1 = "be29b476978a27389f60cb321362f9dfd3241e77"
 repo-rev = "main"
-repo-url = "https://github.com/TenzinCHW/MEFK.jl"
+repo-url = "/home/tenzin/Libraries/MEFK.jl"
 uuid = "f9d25a36-d517-41d3-bbe1-67e302c5cb03"
 version = "0.1.0"
 
