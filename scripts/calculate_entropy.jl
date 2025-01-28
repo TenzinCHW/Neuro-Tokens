@@ -17,8 +17,10 @@ function NSB(HL, HLm1, L)
 end
 
 
-function MMcorrectedentropy(dist, totnumpatts)
-    naiveentropy(dist) + (length(dist) - 1) / (2 * totnumpatts)
+"""From my understanding of Miller-Madow bias correction https://www.cns.nyu.edu/pub/lcv/paninski-infoEst-2003.pdf"""
+function MMcorrectedentropy(dist)
+    mle = naiveentropy(dist)
+    mle + (count(!=(0), mle) - 1) / (2 * length(dist))
 end
 
 
@@ -112,10 +114,10 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
                     if subdir == "complete"
                         entropies["MLE plugin"]["raw"][i, j, k] = naiveentropy(incount)
-                        entropies["MM correction"]["raw"][i, j, k] = MMcorrectedentropy(incount, length(ininds))
+                        entropies["MM correction"]["raw"][i, j, k] = MMcorrectedentropy(incount)
                     end
                     entropies["MLE plugin"][subdir][i, j, k] = naiveentropy(outcount)
-                    entropies["MM correction"][subdir][i, j, k] = MMcorrectedentropy(outcount, length(ininds))
+                    entropies["MM correction"][subdir][i, j, k] = MMcorrectedentropy(outcount)
                 end
             end
         end
