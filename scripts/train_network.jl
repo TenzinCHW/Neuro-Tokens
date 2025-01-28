@@ -1,6 +1,6 @@
 import DrWatson
 DrWatson.@quickactivate
-import MEFK, Distributions, Flux, CUDA, MAT
+import MEFK, Distributions, Flux, CUDA, MAT, MLUtils
 import ProgressBars: ProgressBar, set_multiline_postfix
 import Printf
 include("extract_joost.jl")
@@ -29,10 +29,19 @@ function convergeloader(model, loader)
 end
 
 
+function rawuniqueoutentropy(out, counts)
+    _, cnt = combine_counts(out, counts)
+    # TODO compute MM entropy too just in case
+    ent = naiveentropy(cnt)
+    mment = MMcorrectedentropy(cnt)
+    ent, mment
+end
+
+
 print2dp(val) = Printf.@sprintf("%.2f", val)
 
 
-function trainondata(data, maxiter, winsz, batchsize, arraycast, lr, checkevery=100; model=nothing)
+function trainondata(data, maxiter, winsz, batchsize, arraycast, lr, checkevery=100; model=nothing, startiter=1)
     println("windowing")
     traindata, counts = window(data, winsz)
     bs, n = size(traindata)
@@ -41,16 +50,18 @@ function trainondata(data, maxiter, winsz, batchsize, arraycast, lr, checkevery=
     # Prep dataloader
     println("prep loader")
     counts = reshape(counts, (length(counts), 1))
-    loader = Flux.Data.DataLoader((traindata', counts'); batchsize=batchsize, partial=true)
+    loader = MLUtils.DataLoader((traindata', counts'); batchsize=batchsize, partial=true)
     if isnothing(model)
         model = MEFK.MEF2T(n; array_cast=arraycast)
+    else
+        model = MEFK.MEF2T(model, arraycast)
     end
     optim = Flux.setup(Flux.Adam(lr), model)
     losses = []
-    entropies = Dict()
-    uniqueout = MEFK.convergedynamics(model, traindata |> arraycast) |> Array
-    pb = ProgressBar(1:maxiter)
-    ent = 0
+    uniqueout = convergeloader(model, loader) #MEFK.convergedynamics(model, traindata |> arraycast) |> Array
+    ent, mment = rawuniqueoutentropy(uniqueout, counts)
+    entropies = Dict("MLE"=>Dict(startiter=>ent), "MM"=>Dict(startiter=>mment))
+    pb = ProgressBar(startiter+1:maxiter)
     for i in pb
         loss = 0
         for (d, c) in loader
@@ -59,13 +70,13 @@ function trainondata(data, maxiter, winsz, batchsize, arraycast, lr, checkevery=
             loss += l
             Flux.update!(optim, model, grads)
         end
-        set_multiline_postfix(pb, "Loss: $(print2dp(loss))\nEntropy: $(ent)")
+        set_multiline_postfix(pb, "Loss: $(print2dp(loss)) MLE: $(print2dp(ent)) MM: $(print2dp(mment))")
         push!(losses, loss)
         if i % checkevery == 0
             checkout = convergeloader(model, loader)
-            _, cnt = combine_counts(checkout, counts)
-            ent = naiveentropy(cnt)
-            entropies[i] = ent
+            ent, mment = rawuniqueoutentropy(checkout, counts)
+            entropies["MLE"][i] = ent
+            entropies["MM"][i] = mment
             set_multiline_postfix(pb, "Loss: $(print2dp(loss))\nEntropy: $(ent)")
             if all(checkout .== uniqueout)
                 break
@@ -76,8 +87,7 @@ function trainondata(data, maxiter, winsz, batchsize, arraycast, lr, checkevery=
     end
     input = ordered_window(data, winsz)
     # converge on data
-    println(size(input))
-    inputloader = Flux.Data.DataLoader((input', ones(1, size(input)[1])); batchsize=batchsize, partial=true)
+    inputloader = MLUtils.DataLoader((input', ones(1, size(input)[1])); batchsize=batchsize, partial=true)
     output = convergeloader(model, inputloader)
     # instead of returning input and output, return index of traindata and uniqueout
     uniqueout = MEFK.convergedynamics(model, traindata |> arraycast) |> Array
